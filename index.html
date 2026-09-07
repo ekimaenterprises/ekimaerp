@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>EKIMA Enterprise Management System</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+</head>
+<body>
+<div id="login" class="login-wrap">
+  <div class="login-card">
+    <div class="logo">E</div><h1>EKIMA ENTERPRISES</h1><p>Business Management System</p>
+    <input id="user" placeholder="Username" value="admin">
+    <input id="pass" type="password" placeholder="Password" value="1234">
+    <select id="role"><option>Admin</option><option>Manager</option><option>Sales</option><option>Service</option><option>Store</option></select>
+    <button class="btn full" onclick="login()">LOGIN</button>
+    <small>Demo login: admin / 1234</small>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<aside class="sidebar">
+ <div class="brand"><div class="logo sm">E</div><div><b>EKIMA</b><small>Management System</small></div></div>
+ <nav id="nav"></nav>
+ <div class="sidebottom">Logged in: <b id="who"></b><button class="logout" onclick="logout()">Logout</button></div>
+</aside>
+<main>
+<header><div><button class="hamb" onclick="document.querySelector('.sidebar').classList.toggle('open')">☰</button><b id="title">Dashboard</b></div><div id="clock"></div></header>
+<section id="content"></section>
+</main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
