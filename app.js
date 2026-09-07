@@ -105,3 +105,241 @@ function filterTable(q){let t=document.querySelector("#tbl tbody");if(!t)return;
 function draw(){setTimeout(()=>{let ctx=document.getElementById("chart");if(!ctx)return;let rows=data.sales.slice(-10);new Chart(ctx,{type:"bar",data:{labels:rows.map(r=>r.date||"Sale"),datasets:[{label:"Sales Amount",data:rows.map(r=>+r.amount||0),borderWidth:1}]},options:{responsive:true,scales:{y:{beginAtZero:true}}}})},20)}
 function exportData(){let a=document.createElement("a");a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:"application/json"}));a.download="ekima-backup.json";a.click()}
 setInterval(()=>document.getElementById("clock").textContent=new Date().toLocaleString(),1000);
+
+/* EKIMA ERP extension layer
+   Additive by design: existing localStorage records and modules remain compatible. */
+(function(){
+const extraData={
+  customers:[],suppliers:[],expenses:[],payments:[],returns:[],items:[],hr:[],crm:[],
+  permissions:{
+    Admin:{import:true,export:true,edit:true,delete:true,print:true},
+    Manager:{import:true,export:true,edit:true,delete:false,print:true},
+    Sales:{import:false,export:true,edit:true,delete:false,print:true},
+    Service:{import:false,export:true,edit:true,delete:false,print:true},
+    Store:{import:true,export:true,edit:true,delete:false,print:true}
+  }
+};
+Object.keys(extraData).forEach(k=>{if(data[k]===undefined)data[k]=extraData[k]});
+data.settings=Object.assign({companyName:"EKIMA ENTERPRISES",address:"Kathmandu, Nepal",vat:"",phone:"",email:""},data.settings||{});
+data.users=data.users||[];
+data.users.forEach(u=>{if(!u.role)u.role="Sales"});
+const originalSchemas=schemas;
+Object.assign(modules,{
+  customers:["👤","Customers"],suppliers:["🏢","Suppliers"],items:["📦","Items"],
+  expenses:["💸","Expenses"],payments:["💳","Payments"],returns:["↩","Returns"],
+  crm:["🤝","CRM"],hr:["👥","HR / Staff"],imports:["⬆","Import Center"]
+});
+Object.assign(schemas,{
+  customers:{title:"Customers",fields:[["code","Customer Code","text"],["name","Customer Name","text"],["mobile","Mobile Number","tel"],["address","Address","text"],["panvat","PAN / VAT","text"],["opening","Opening Balance","number"],["type","Customer Type","text"]]},
+  suppliers:{title:"Suppliers",fields:[["code","Supplier Code","text"],["name","Supplier Name","text"],["mobile","Mobile Number","tel"],["address","Address","text"],["panvat","PAN / VAT","text"],["opening","Opening Balance","number"]]},
+  items:{title:"Items",fields:[["code","Item Code","text"],["name","Item Name","text"],["unit","Unit","text"],["opening","Opening Stock","number"],["reorder","Reorder Level","number"],["rate","Rate","number"],["vat","VAT %","number"]]},
+  expenses:{title:"Expenses",fields:[["date","Date","date"],["category","Category","text"],["description","Description","text"],["amount","Amount","number"],["vat","VAT %","number"],["payment","Payment Method","text"],["ref","Reference","text"]]},
+  payments:{title:"Payments",fields:[["date","Date","date"],["party","Customer / Supplier","text"],["mobile","Mobile Number","tel"],["amount","Amount","number"],["method","Payment Method","text"],["ref","Reference","text"],["note","Note","text"]]},
+  returns:{title:"Returns",fields:[["date","Date","date"],["type","Return Type (Sale/Purchase)","text"],["party","Customer / Supplier","text"],["item","Item / Part","text"],["qty","Qty","number"],["rate","Rate","number"],["ref","Reference","text"],["reason","Reason","text"]]},
+  crm:{title:"CRM",fields:[["date","Date","date"],["code","Customer Code","text"],["customer","Customer Name","text"],["mobile","Mobile Number","tel"],["source","Source","text"],["stage","Stage","text"],["next","Next Follow-up","date"],["notes","Notes","text"]]},
+  hr:{title:"HR / Staff",fields:[["code","Staff Code","text"],["name","Staff Name","text"],["mobile","Mobile Number","tel"],["role","Role","text"],["department","Department","text"],["joining","Joining Date","date"],["status","Status","text"]]}
+});
+let importState={module:"sales",rows:[],headers:[],errors:[],source:""};
+const baseSubmit=submitForm;
+function activeRole(){return current?.role||"Admin"}
+function can(action){return activeRole()==="Admin" || data.permissions?.[activeRole()]?.[action]!==false}
+function guard(action,label){if(can(action))return true;alert("Your role does not have permission to "+label+".");return false}
+function notify(message){const n=document.createElement("div");n.className="toast";n.textContent=message;document.body.appendChild(n);setTimeout(()=>n.remove(),2800)}
+function keyValue(type,row){
+  const keys={customers:["code","mobile","panvat"],suppliers:["code","mobile","panvat"],items:["code","name"],sales:["date","person","model","amount"],purchases:["date","supplier","bill","item"],returns:["date","ref","item","party"],expenses:["date","category","description","amount"],payments:["date","ref","party","amount"],crm:["date","customer","mobile"],hr:["code","name","mobile"]};
+  const ks=keys[type]||schemas[type]?.fields.slice(0,3).map(x=>x[0])||[];
+  return ks.map(k=>String(row[k]??"").trim().toLowerCase()).filter(Boolean).join("|");
+}
+function isDuplicate(type,row,ignoreId){
+  const key=keyValue(type,row); if(!key)return false;
+  return (data[type]||[]).some(r=>r.id!==ignoreId && keyValue(type,r)===key);
+}
+function contactActions(phone){
+  const p=String(phone||"").replace(/\D/g,""); if(!p)return "";
+  return `<span class="contact-actions"><a class="contact call" href="tel:${p}" title="Call">Call</a><a class="contact sms" href="sms:${p}" title="SMS">SMS</a><a class="contact wa" target="_blank" href="https://wa.me/${p}" title="WhatsApp">WhatsApp</a></span>`;
+}
+function partyList(type){
+  const list=data[type]||[];
+  return `<option value="">Select ${type==="customers"?"customer":"supplier"}…</option>`+
+    list.map(r=>`<option value="${esc(r.name||"")}" data-id="${r.id}" data-mobile="${esc(r.mobile||r.phone||"")}" data-address="${esc(r.address||"")}" data-panvat="${esc(r.panvat||"")}" data-balance="${esc(r.opening||"")}">${esc(r.name||r.code||"")}</option>`).join("");
+}
+function partyPreview(id){
+  const el=document.getElementById(id),o=el?.selectedOptions?.[0], box=document.getElementById(id+"_info");
+  if(!box)return;
+  if(!o||!o.value){box.innerHTML="<span class='muted'>Select a saved party to see contact, tax, balance and history.</span>";return}
+  const name=o.value,mobile=o.dataset.mobile||"", history=[...(data.sales||[]),...(data.purchases||[]),...(data.payments||[])].filter(r=>[r.person,r.customer,r.supplier,r.party].includes(name)).length;
+  box.innerHTML=`<b>${esc(name)}</b><span>Mobile: ${esc(mobile||"—")} ${contactActions(mobile)}</span><span>Address: ${esc(o.dataset.address||"—")}</span><span>PAN/VAT: ${esc(o.dataset.panvat||"—")}</span><span>Opening balance: ${money(o.dataset.balance||0)} · ${history} transaction(s)</span>`;
+  const mobileInput=document.getElementById(id==="f_person"?"f_mobil":"f_mobile"); if(mobileInput&&mobile)mobileInput.value=mobile;
+}
+window.showPartyInfo=partyPreview;
+function enhancedForm(type,record){
+  const s=schemas[type], editId=record?.id||"";
+  const party=type==="sales"?"person":type==="purchases"?"supplier":null;
+  return `<div class="formgrid" id="form" data-edit-id="${editId}">${
+    s.fields.map(([k,l,t])=>{
+      if(party===k){
+        const pt=type==="sales"?"customers":"suppliers";
+        const savedParty=record?.[k]||"";
+        const partyOptions=partyList(pt)+(savedParty&&!data[pt].some(x=>String(x.name||"")===String(savedParty))?`<option value="${esc(savedParty)}" selected>${esc(savedParty)} (legacy record)</option>`:"");
+        return `<div class="field-wide"><select id="f_${k}" title="${l}" onchange="showPartyInfo('f_${k}')">${partyOptions.replace(`value="${esc(savedParty)}"`,`value="${esc(savedParty)}" selected`)}</select><div id="f_${k}_info" class="party-info"></div></div>`;
+      }
+      if(["payment","method"].includes(k))return `<select id="f_${k}" title="${l}"><option value="">Payment Method</option>${["Cash","Bank","QR","Credit"].map(v=>`<option ${record?.[k]===v?"selected":""}>${v}</option>`).join("")}</select>`;
+      return `<input id="f_${k}" type="${t}" placeholder="${l}" aria-label="${l}" value="${esc(record?.[k]??"")}">`;
+    }).join("")
+  }</div><div class="form-actions"><button class="btn" onclick="submitForm('${type}')">${editId?"Update Record":"Save Record"}</button>${editId?` <button class="btn secondary" onclick="render()">Cancel</button>`:""} <button class="btn outline" onclick="printCurrentEntry('${type}')">Print Entry</button></div>`;
+}
+function saveRecord(type,obj,notifyUser=true){
+  if(!guard("edit","edit records"))return false;
+  if(isDuplicate(type,obj,obj.id)){alert("Duplicate entry prevented. Match found for this record.");return false}
+  obj.id=obj.id||Date.now()+Math.floor(Math.random()*1000);
+  if(!data[type])data[type]=[]; data[type].push(obj); afterRecordSaved(type,obj); save(); if(notifyUser)notify("Record saved"); render(); return true;
+}
+function submitEnhanced(type){
+  const obj={}; (schemas[type]?.fields||[]).forEach(([k])=>obj[k]=document.getElementById("f_"+k)?.value||"");
+  const editId=Number(document.getElementById("form")?.dataset.editId||0);
+  if(editId){
+    if(!guard("edit","edit records"))return;
+    if(isDuplicate(type,obj,editId)){alert("Duplicate entry prevented.");return}
+    const i=(data[type]||[]).findIndex(x=>x.id===editId); if(i>=0){obj.id=editId;data[type][i]=obj;afterRecordSaved(type,obj);save();notify("Record updated");render()} return;
+  }
+  saveRecord(type,obj);
+}
+window.submitForm=submitEnhanced;
+function afterRecordSaved(type,o){
+  if(["purchases","inventory","returns"].includes(type))updateStock(type,o);
+  if(type==="sales"&&o.person&&!data.customers.some(c=>String(c.name).toLowerCase()===String(o.person).toLowerCase())&&o.mobil){
+    data.customers.push({id:Date.now()+9,code:"AUTO-"+Date.now().toString().slice(-5),name:o.person,mobile:o.mobil,address:o.place||"",panvat:"",opening:0,type:"Auto-created"});
+  }
+}
+function updateStock(type,o){
+  const name=o.item||o.model; if(!name)return;
+  let item=data.items.find(x=>String(x.name).toLowerCase()===String(name).toLowerCase()||String(x.code).toLowerCase()===String(name).toLowerCase());
+  if(!item){item={id:Date.now()+8,code:"AUTO-"+Date.now().toString().slice(-5),name,unit:"pcs",opening:0,reorder:0,rate:o.rate||0,vat:o.vat||0};data.items.push(item)}
+  let delta=0;
+  if(type==="purchases"||(type==="inventory"&&/purchase|return/i.test(o.type||"")))delta=+o.qty||0;
+  if(type==="returns")delta=/purchase/i.test(o.type||"")?(+o.qty||0):-(+o.qty||0);
+  if(type==="inventory"&&/sale|issue/i.test(o.type||""))delta=-(+o.qty||0);
+  item.stock=(+item.stock||+item.opening||0)+delta;
+  const part=data.parts.find(x=>String(x.name||"").toLowerCase()===String(name).toLowerCase()||String(x.partno||"").toLowerCase()===String(name).toLowerCase());
+  if(part){
+    if(delta>0)part.purchase=(+part.purchase||0)+delta;
+    if(delta<0)part.issue=(+part.issue||0)+Math.abs(delta);
+  }
+}
+function actionButtons(type){
+  return `<div class="export-actions">${can("export")?`<button class="btn mini" onclick="exportModule('${type}')">Export Excel</button><button class="btn mini" onclick="exportDocument('${type}','pdf')">Export PDF</button><button class="btn mini" onclick="exportDocument('${type}','word')">Export Word</button>`:""}${can("print")?`<button class="btn mini outline" onclick="exportDocument('${type}','print')">Print</button>`:""}</div>`;
+}
+function rowPhone(r){
+  return r.mobile||r.mobil||r.phone||((r.customer&&data.customers.find(c=>c.name===r.customer)?.mobile)||"");
+}
+function enhancedTable(type){
+  const s=schemas[type],rows=data[type]||[];
+  if(!s)return "";
+  let out=`<div class="tablewrap"><table><thead><tr>${s.fields.map(x=>`<th>${x[1]}</th>`).join("")}<th>Contact</th><th>Status / Balance</th><th>Actions</th></tr></thead><tbody>`;
+  rows.forEach(r=>{
+    out+="<tr>";
+    s.fields.forEach(([k])=>out+=`<td>${esc(r[k]??"")}</td>`);
+    out+=`<td>${contactActions(rowPhone(r))}</td>`;
+    let statusCell="";
+    if(type==="customers"||type==="suppliers")statusCell=money(r.opening||0);
+    else if(type==="items")statusCell=`Stock ${(+r.stock||+r.opening||0)}${(+r.stock||+r.opening||0)<=(+r.reorder||0)?" · LOW":""}`;
+    else if(type==="outstanding"){const due=(+r.total||0)-(+r.paid||0);statusCell=money(due)+(due>0?` ${contactActions(r.phone)}`:" Paid")}
+    else statusCell=esc(r.status||r.stage||r.claimstatus||r.companystatus||"");
+    out+=`<td>${statusCell}</td><td>${can("edit")?`<button class="btn mini" onclick="editRecord('${type}',${r.id})">Edit</button>`:""} ${can("delete")?`<button class="btn mini danger" onclick="del('${type}',${r.id})">Delete</button>`:""}</td></tr>`;
+  });
+  return out+"</tbody></table></div>";
+}
+window.table=enhancedTable;
+function enhancedEdit(type,id){
+  const record=(data[type]||[]).find(x=>x.id===id); if(!record)return;
+  if(!guard("edit","edit records"))return;
+  document.getElementById("content").innerHTML=`<div class="wrap"><div class="head"><div><h1>Edit ${schemas[type].title}</h1><div class="page-note">Update the saved record and keep the duplicate check enabled.</div></div>${actionButtons(type)}</div><div class="panel">${enhancedForm(type,record)}</div></div>`;
+  if(type==="sales")partyPreview("f_person"); if(type==="purchases")partyPreview("f_supplier");
+}
+window.editRecord=enhancedEdit;
+window.del=function(type,id){if(!guard("delete","delete records"))return;if(confirm("Delete record? This cannot be undone.")){data[type]=(data[type]||[]).filter(x=>x.id!==id);save();render();notify("Record deleted")}};
+function renderEnhanced(){
+  const c=document.getElementById("content");
+  if(page==="imports"){document.getElementById("title").textContent="Import Center";c.innerHTML=importPage();return}
+  if(page==="dashboard"){document.getElementById("title").textContent="Management Dashboard";c.innerHTML=dashboard().replace('<button class="btn" onclick="exportData()">Export Backup</button>','<div class="export-actions"><button class="btn" onclick="exportData()">Export Backup</button>'+actionButtons("sales")+'</div>');draw();return}
+  if(page==="users"){document.getElementById("title").textContent="Users / Staff";c.innerHTML=usersPageEnhanced();return}
+  if(page==="settings"){document.getElementById("title").textContent="System Settings";c.innerHTML=settingsPageEnhanced();return}
+  if(page==="accounting"||page==="reminders"||page==="ai"){document.getElementById("title").textContent=modules[page]?.[1]||page;c.innerHTML=(page==="accounting"?accountingPage():page==="reminders"?remindersPage():aiPage()).replace(/<div class="head">/,'<div class="head"><div class="report-actions">'+actionButtons("transactions")+'</div>');return}
+  const s=schemas[page]; if(!s){c.innerHTML="<div class='wrap'><div class='panel'>Module unavailable.</div></div>";return}
+  document.getElementById("title").textContent=s.title;
+  c.innerHTML=`<div class="wrap"><div class="head"><div><h1>${s.title}</h1><div class="page-note">Search by name, mobile, code, PAN/VAT or any saved field.</div></div><div>${actionButtons(page)}</div></div><div class="panel">${can("edit")?enhancedForm(page):"<p class='muted'>Your role can view and export this module but cannot add or edit records.</p>"}</div><div class="panel"><div class="toolbar"><input class="search" placeholder="Search Name, Mobile, Code or PAN/VAT…" oninput="filterTable(this.value)"><span class="muted">${(data[page]||[]).length} record(s)</span></div><div id="tbl">${enhancedTable(page)}</div></div></div>`;
+  if(page==="sales")partyPreview("f_person"); if(page==="purchases")partyPreview("f_supplier");
+}
+window.render=renderEnhanced;
+function exportRows(type){return data[type]||[]}
+function exportModuleEnhanced(type){
+  if(!guard("export","export data"))return;
+  const rows=exportRows(type),fields=schemas[type]?.fields||[];
+  if(window.XLSX){const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,schemas[type]?.title||type);XLSX.writeFile(wb,`ekima-${type}.xlsx`)}
+  else notify("Excel library is not available. Check your internet connection.");
+}
+window.exportModule=exportModuleEnhanced;
+function reportHtml(type){
+  const rows=exportRows(type),s=schemas[type]||{title:type,fields:[]};
+  const headers=s.fields.map(x=>x[1]), body=rows.map(r=>`<tr>${s.fields.map(([k])=>`<td>${esc(r[k]??"")}</td>`).join("")}</tr>`).join("");
+  let total=rows.reduce((a,r)=>a+(+r.amount||+r.total||(+r.qty||0)*(+r.rate||0)||0),0),vat=rows.reduce((a,r)=>a+(+r.vat||0),0);
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${esc(s.title)} - EKIMA</title><style>body{font-family:Arial;color:#172033;margin:36px}header{border-bottom:3px solid #1976d2;padding-bottom:14px;margin-bottom:24px}h1{margin:0;color:#102a43}h2{margin:12px 0 4px}small{color:#64748b}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #dce5ef;padding:7px;text-align:left}th{background:#eaf2fb}.totals{margin:18px 0 0 auto;width:280px}.totals div{display:flex;justify-content:space-between;padding:5px;border-bottom:1px solid #e2e8f0}.sign{display:flex;justify-content:space-between;margin-top:80px}.sign span{width:180px;border-top:1px solid #172033;padding-top:8px;text-align:center}</style></head><body><header><h1>${esc(data.settings.companyName||"EKIMA ENTERPRISES")}</h1><small>${esc(data.settings.address||"")} · ${esc(data.settings.phone||"")} ${data.settings.vat?"· VAT: "+esc(data.settings.vat):""}</small><h2>${esc(s.title)} Report</h2><small>Date: ${today()} · Prepared by: ${esc(current?.name||"Administrator")}</small></header><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>${body||`<tr><td colspan="${Math.max(headers.length,1)}">No records</td></tr>`}</tbody></table><div class="totals"><div><b>Subtotal</b><b>${money(total)}</b></div><div><span>VAT</span><span>${money(vat)}</span></div><div><b>Total</b><b>${money(total+vat)}</b></div></div><div class="sign"><span>Prepared By</span><span>Approved By</span></div></body></html>`;
+}
+function exportDocument(type,kind){
+  if(kind==="print"&&!guard("print","print reports"))return;
+  if(kind!=="print"&&!guard("export","export documents"))return;
+  const html=reportHtml(type);
+  if(kind==="word"){const blob=new Blob([html],{type:"application/msword"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`ekima-${type}.doc`;a.click();return}
+  if(kind==="print"){const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();w.focus();setTimeout(()=>w.print(),300)}return}
+  if(window.jspdf?.jsPDF){const doc=new jspdf.jsPDF({orientation:"landscape"});const rows=exportRows(type),s=schemas[type]||{title:type,fields:[]};doc.setFontSize(16);doc.setTextColor(16,42,67);doc.text(data.settings.companyName||"EKIMA ENTERPRISES",14,15);doc.setFontSize(11);doc.text(`${s.title} Report | ${today()}`,14,23);doc.setFontSize(8);let y=32;const cols=s.fields.map(x=>x[1]).join(" | ");doc.text(cols.slice(0,170),14,y);y+=6;rows.forEach(r=>{const line=s.fields.map(([k])=>String(r[k]??"")).join(" | ");if(y>190){doc.addPage();y=15}doc.text(line.slice(0,170),14,y);y+=5});const total=rows.reduce((a,r)=>a+(+r.amount||+r.total||(+r.qty||0)*(+r.rate||0)||0),0);doc.text(`Subtotal: ${money(total)}   VAT: ${money(rows.reduce((a,r)=>a+(+r.vat||0),0))}   Total: ${money(total)}`,14,Math.min(y+8,200));doc.text("Prepared By: ____________________    Approved By: ____________________",14,Math.min(y+20,210));doc.save(`ekima-${type}.pdf`)}else{const w=window.open("","_blank");if(w){w.document.write(html);w.document.close();w.print()}}
+}
+window.exportDocument=exportDocument;
+window.printCurrentEntry=function(type){if(!guard("print","print entries"))return;exportDocument(type,"print")};
+function normalizeHeader(v){return String(v||"").toLowerCase().replace(/[^a-z0-9]/g,"")}
+function mapImportRow(raw,type){
+  const fields=schemas[type]?.fields||[], normalized={};
+  fields.forEach(([key,label])=>{
+    const wanted=[normalizeHeader(key),normalizeHeader(label)];
+    const found=Object.keys(raw).find(h=>wanted.includes(normalizeHeader(h))||wanted.some(w=>normalizeHeader(h).includes(w)||w.includes(normalizeHeader(h))));
+    normalized[key]=found?String(raw[found]??"").trim():"";
+  });
+  return normalized;
+}
+function validateImport(){
+  const required={customers:["name"],suppliers:["name"],items:["name"],sales:["person","amount"],purchases:["supplier","item","qty"],returns:["item","qty"],expenses:["amount"],payments:["amount"],crm:["customer","mobile"],hr:["name"]};
+  const seen=new Set(),errors=[];
+  importState.rows.forEach((r,i)=>{
+    const missing=(required[importState.module]||[]).filter(k=>!String(r[k]??"").trim());
+    const key=keyValue(importState.module,r);
+    if(missing.length)errors.push({row:i,field:missing.join(", "),message:"Required field missing"});
+    else if(seen.has(key)||isDuplicate(importState.module,r))errors.push({row:i,field:"duplicate",message:"Duplicate record"});
+    seen.add(key);
+  });
+  importState.errors=errors; return errors;
+}
+function importPage(){
+  const stage=importState.rows.length?`<div class="import-stage"><div class="step done">1 Upload</div><div class="step active">2 Preview & Validate</div><div class="step">3 Confirm</div></div><div class="import-summary"><b>${importState.rows.length} row(s)</b> loaded from ${esc(importState.source)} · ${importState.errors.length} validation issue(s)</div><div class="tablewrap"><table class="import-table"><thead><tr>${importState.headers.map(h=>`<th>${esc(h)}</th>`).join("")}<th>Validation</th></tr></thead><tbody>${importState.rows.map((r,i)=>`<tr class="${importState.errors.some(e=>e.row===i)?"row-error":""}">${schemas[importState.module].fields.map(([k])=>`<td><input data-import-row="${i}" data-import-key="${k}" value="${esc(r[k]??"")}" oninput="updateImportCell(this)"></td>`).join("")}<td>${importState.errors.filter(e=>e.row===i).map(e=>esc(e.message)).join(", ")||"Ready"}</td></tr>`).join("")}</tbody></table></div><div class="form-actions"><button class="btn" onclick="validateAndRefreshImport()">Validate Again</button>${can("edit")?`<button class="btn success" onclick="confirmImport()">Confirm Import & Save</button>`:""}<button class="btn secondary" onclick="resetImport()">Clear</button></div>`:
+  `<div class="upload-card"><div><h3>Upload a spreadsheet safely</h3><p class="muted">Choose a module, upload .xlsx/.xls/.csv, preview every row, correct validation errors, then confirm.</p></div><div class="import-controls"><select id="import-module">${Object.keys(schemas).map(k=>`<option value="${k}" ${k===importState.module?"selected":""}>${schemas[k].title}</option>`).join("")}</select><input id="import-file" type="file" accept=".xlsx,.xls,.csv" onchange="handleImportFile(this)"><button class="btn outline" onclick="downloadTemplate()">Download Template</button></div></div>`;
+  return `<div class="wrap"><div class="head"><div><h1>Import Center</h1><div class="page-note">Import is permission-controlled and never overwrites records silently.</div></div>${actionButtons("sales")}</div><div class="panel">${stage}</div></div>`;
+}
+window.handleImportFile=function(input){
+  if(!guard("import","import data")){input.value="";return}
+  const file=input.files?.[0];if(!file||!window.XLSX)return;
+  const reader=new FileReader();reader.onload=e=>{try{const wb=XLSX.read(e.target.result,{type:"array"}),sheet=wb.Sheets[wb.SheetNames[0]],raw=XLSX.utils.sheet_to_json(sheet,{defval:""});importState.module=document.getElementById("import-module").value;importState.source=file.name;importState.headers=schemas[importState.module].fields.map(x=>x[1]);importState.rows=raw.map(r=>mapImportRow(r,importState.module));validateImport();render()}catch(err){alert("Could not read this spreadsheet: "+err.message)}};reader.readAsArrayBuffer(file);
+};
+window.updateImportCell=function(el){importState.rows[+el.dataset.importRow][el.dataset.importKey]=el.value};
+window.validateAndRefreshImport=function(){validateImport();render();notify(importState.errors.length?`${importState.errors.length} issue(s) found`:"All rows are ready to import")};
+window.resetImport=function(){importState={module:"sales",rows:[],headers:[],errors:[],source:""};render()};
+window.confirmImport=function(){
+  if(!guard("import","import data"))return;validateImport();if(importState.errors.length){alert("Fix all validation issues before confirming.");render();return}
+  let added=0;importState.rows.forEach(r=>{if(!isDuplicate(importState.module,r)){r.id=Date.now()+added+Math.floor(Math.random()*1000);data[importState.module].push(r);afterRecordSaved(importState.module,r);added++}});save();notify(`${added} record(s) imported safely`);resetImport();
+};
+window.downloadTemplate=function(){const type=document.getElementById("import-module")?.value||"sales",headers=schemas[type].fields.map(x=>x[1]);if(window.XLSX){const ws=XLSX.utils.aoa_to_sheet([headers]);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,"Template");XLSX.writeFile(wb,`ekima-${type}-template.xlsx`)}};
+function usersPageEnhanced(){
+  const actions=["import","export","edit","delete","print"],roles=["Manager","Sales","Service","Store"];
+  return `<div class="wrap"><div class="head"><div><h1>Users & Permissions</h1><div class="page-note">Admin always has full access. Changes apply immediately in this browser.</div></div></div><div class="panel"><div class="permission-table"><table><thead><tr><th>Role</th>${actions.map(a=>`<th>${a[0].toUpperCase()+a.slice(1)}</th>`).join("")}</tr></thead><tbody>${roles.map(role=>`<tr><th>${role}</th>${actions.map(a=>`<td><input type="checkbox" ${data.permissions?.[role]?.[a]!==false?"checked":""} onchange="setPermission('${role}','${a}',this.checked)"></td>`).join("")}</tr>`).join("")}</tbody></table></div></div><div class="panel"><h3>Staff accounts</h3>${data.users.map(u=>`<div class="user-row"><b>${esc(u.name)}</b><span>${esc(u.username)} · ${esc(u.role)}</span></div>`).join("")}</div></div>`;
+}
+window.setPermission=function(role,action,value){data.permissions[role]=data.permissions[role]||{};data.permissions[role][action]=value;save();notify(`${role} ${action} permission ${value?"enabled":"disabled"}`)};
+function settingsPageEnhanced(){return `<div class="wrap"><div class="head"><div><h1>System Settings</h1><div class="page-note">These company details appear on PDF, Word and print reports.</div></div>${actionButtons("transactions")}</div><div class="panel"><div class="settings-grid"><label>Company name<input id="set-company" value="${esc(data.settings.companyName)}"></label><label>Address<input id="set-address" value="${esc(data.settings.address)}"></label><label>Phone<input id="set-phone" value="${esc(data.settings.phone)}"></label><label>Email<input id="set-email" value="${esc(data.settings.email)}"></label><label>PAN / VAT<input id="set-vat" value="${esc(data.settings.vat)}"></label></div><button class="btn" onclick="saveCompanySettings()">Save Company Details</button></div><div class="panel"><p class="muted">Use Users & Permissions to control Import, Export, Edit, Delete and Print for each role.</p></div></div>`}
+window.saveCompanySettings=function(){["companyName","address","phone","email","vat"].forEach(k=>data.settings[k]=document.getElementById("set-"+(k==="companyName"?"company":k))?.value||"");save();notify("Company details saved");render()};
+})();
