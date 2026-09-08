@@ -342,15 +342,7 @@ function usersPageEnhanced(){
 window.setPermission=function(role,action,value){data.permissions[role]=data.permissions[role]||{};data.permissions[role][action]=value;save();notify(`${role} ${action} permission ${value?"enabled":"disabled"}`)};
 function settingsPageEnhanced(){return `<div class="wrap"><div class="head"><div><h1>System Settings</h1><div class="page-note">These company details appear on PDF, Word and print reports.</div></div>${actionButtons("transactions")}</div><div class="panel"><div class="settings-grid"><label>Company name<input id="set-company" value="${esc(data.settings.companyName)}"></label><label>Address<input id="set-address" value="${esc(data.settings.address)}"></label><label>Phone<input id="set-phone" value="${esc(data.settings.phone)}"></label><label>Email<input id="set-email" value="${esc(data.settings.email)}"></label><label>PAN / VAT<input id="set-vat" value="${esc(data.settings.vat)}"></label></div><button class="btn" onclick="saveCompanySettings()">Save Company Details</button></div><div class="panel"><p class="muted">Use Users & Permissions to control Import, Export, Edit, Delete and Print for each role.</p></div></div>`}
 window.saveCompanySettings=function(){["companyName","address","phone","email","vat"].forEach(k=>data.settings[k]=document.getElementById("set-"+(k==="companyName"?"company":k))?.value||"");save();notify("Company details saved");render()};
-})();/* =========================================================
-   EKIMA ERP - SALES & PURCHASE SPREADSHEET ENTRY
-   Integrated with existing app.js
-   ========================================================= */
-
-(function () {
-
-  /* ---------- Extend Sales / Purchase schemas ---------- */
-
+})();
   schemas.sales.fields = [
     ["date","Date","date"],
     ["bill","Invoice No","text"],
