@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>EKIMA Enterprise Management System</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -12,10 +13,12 @@
 <div id="login" class="login-wrap">
   <div class="login-card">
     <div class="logo">E</div><h1>EKIMA ENTERPRISES</h1><p>Business Management System</p>
-    <input id="user" placeholder="Username" value="admin">
-    <input id="pass" type="password" placeholder="Password" value="1234">
+    <form autocomplete="on" onsubmit="event.preventDefault();login()">
+    <input id="user" name="username" autocomplete="username" placeholder="Username" value="admin">
+    <input id="pass" name="password" type="password" autocomplete="current-password" placeholder="Password" value="1234">
     <select id="role"><option>Admin</option><option>Manager</option><option>Sales</option><option>Service</option><option>Store</option></select>
-    <button class="btn full" onclick="login()">LOGIN</button>
+    <button class="btn full" type="submit">LOGIN</button>
+    </form>
     <small>Demo login: admin / 1234</small>
   </div>
 </div>
@@ -31,6 +34,6 @@
 <section id="content"></section>
 </main>
 </div>
-<script src="app.js"></script>
+<script src="app.js?v=spreadsheet-order-5"></script>
 </body>
 </html>
