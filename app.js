@@ -3061,3 +3061,2429 @@ setInterval(
     }
   };
 })();
+/* ============================================================
+   EKIMA ERP - NEW SPREADSHEET QUOTATION
+   Paste this code at the VERY END of app.js
+   Existing modules remain unchanged.
+   ============================================================ */
+
+(function () {
+
+  /* ---------- BASIC SETUP ---------- */
+
+  data.quotations = data.quotations || [];
+
+  modules.quotation = ["🧾", "Quotation"];
+
+  /* ---------- AUTO QUOTATION NUMBER ---------- */
+
+  function quotationNextNo() {
+
+    const rows = data.quotations || [];
+
+    let max = 0;
+
+    rows.forEach(function (r) {
+
+      const n = parseInt(
+        String(r.quoteNo || "").replace(/\D/g, ""),
+        10
+      );
+
+      if (Number.isFinite(n)) {
+        max = Math.max(max, n);
+      }
+
+    });
+
+    return "QTN-" + String(max + 1).padStart(6, "0");
+  }
+
+
+  /* ---------- ESCAPE ---------- */
+
+  function qEsc(v) {
+
+    return String(v ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  }
+
+
+  /* ---------- TEMPORARY ROWS ---------- */
+
+  window.quotationRows =
+    window.quotationRows || [
+      {
+        item: "",
+        brand: "",
+        qty: 1,
+        unit: "pcs",
+        rate: 0,
+        discount: 0,
+        vat: 13
+      }
+    ];
+
+
+  /* ---------- CALCULATE ---------- */
+
+  window.calculateQuotationNew = function () {
+
+    let subtotal = 0;
+    let discount = 0;
+    let vatTotal = 0;
+
+    quotationRows.forEach(function (r) {
+
+      const qty = Number(r.qty) || 0;
+      const rate = Number(r.rate) || 0;
+      const dis = Number(r.discount) || 0;
+      const vat = Number(r.vat) || 0;
+
+      const gross = qty * rate;
+
+      const taxable =
+        Math.max(0, gross - dis);
+
+      const vatAmount =
+        taxable * vat / 100;
+
+      subtotal += gross;
+      discount += dis;
+      vatTotal += vatAmount;
+
+    });
+
+    const grandTotal =
+      subtotal - discount + vatTotal;
+
+    return {
+      subtotal,
+      discount,
+      vat: vatTotal,
+      grandTotal
+    };
+
+  };
+
+
+  /* ---------- UPDATE ROW ---------- */
+
+  window.updateQuotationRow = function (
+    index,
+    field,
+    value
+  ) {
+
+    if (!quotationRows[index]) return;
+
+    quotationRows[index][field] = value;
+
+    renderQuotationNew();
+
+  };
+
+
+  /* ---------- ADD ROW ---------- */
+
+  window.addQuotationNewRow = function () {
+
+    quotationRows.push({
+
+      item: "",
+      brand: "",
+      qty: 1,
+      unit: "pcs",
+      rate: 0,
+      discount: 0,
+      vat: 13
+
+    });
+
+    renderQuotationNew();
+
+  };
+
+
+  /* ---------- DELETE ROW ---------- */
+
+  window.deleteQuotationNewRow = function (index) {
+
+    if (quotationRows.length <= 1) {
+
+      alert("At least one item row is required.");
+
+      return;
+
+    }
+
+    quotationRows.splice(index, 1);
+
+    renderQuotationNew();
+
+  };
+
+
+  /* ---------- NEW QUOTATION ---------- */
+
+  window.newQuotationNew = function () {
+
+    quotationRows = [
+
+      {
+        item: "",
+        brand: "",
+        qty: 1,
+        unit: "pcs",
+        rate: 0,
+        discount: 0,
+        vat: 13
+      }
+
+    ];
+
+    renderQuotationNew();
+
+  };
+
+
+  /* ---------- QUOTATION PAGE ---------- */
+
+  function quotationPageNew(record) {
+
+    const q = record || {};
+
+    if (!record) {
+
+      document.getElementById("title").textContent =
+        "Quotation";
+
+    }
+
+    const totals =
+      calculateQuotationNew();
+
+    return `
+
+    <div class="wrap">
+
+      <div class="head">
+
+        <div>
+
+          <h1>Quotation</h1>
+
+          <div class="page-note">
+            Spreadsheet-style quotation entry
+          </div>
+
+        </div>
+
+        <div class="quotation-new-actions">
+
+          <button class="btn"
+            onclick="newQuotationNew()">
+            + New
+          </button>
+
+          <button class="btn"
+            onclick="saveQuotationNew()">
+            Save
+          </button>
+
+          <button class="btn"
+            onclick="printQuotationNew()">
+            Print
+          </button>
+
+          <button class="btn"
+            onclick="exportQuotationPDFNew()">
+            PDF
+          </button>
+
+          <button class="btn"
+            onclick="exportQuotationWordNew()">
+            Word
+          </button>
+
+          <button class="btn"
+            onclick="exportQuotationExcelNew()">
+            Excel
+          </button>
+
+        </div>
+
+      </div>
+
+
+      <!-- BASIC INFORMATION -->
+
+      <div class="panel">
+
+        <div class="quotation-basic-grid">
+
+          <label>
+            Quotation No.
+            <input
+              id="qnew_no"
+              type="text"
+              readonly
+              value="${qEsc(
+                q.quoteNo ||
+                quotationNextNo()
+              )}">
+          </label>
+
+
+          <label>
+            Date
+            <input
+              id="qnew_date"
+              type="date"
+              value="${qEsc(
+                q.date ||
+                today()
+              )}">
+          </label>
+
+
+          <label>
+            Name
+            <input
+              id="qnew_name"
+              type="text"
+              placeholder="Customer name"
+              value="${qEsc(
+                q.customer ||
+                q.name ||
+                ""
+              )}">
+          </label>
+
+
+          <label>
+            Address
+            <input
+              id="qnew_address"
+              type="text"
+              placeholder="Address"
+              value="${qEsc(
+                q.address ||
+                ""
+              )}">
+          </label>
+
+        </div>
+
+      </div>
+
+
+      <!-- SPREADSHEET -->
+
+      <div class="panel">
+
+        <div class="quotation-sheet-title">
+
+          <h3>Quotation Items</h3>
+
+          <button
+            class="btn"
+            onclick="addQuotationNewRow()">
+            + Add Row
+          </button>
+
+        </div>
+
+
+        <div class="tablewrap">
+
+          <table class="quotation-spreadsheet">
+
+            <thead>
+
+              <tr>
+
+                <th>S.N.</th>
+
+                <th>Item</th>
+
+                <th>Brand</th>
+
+                <th>Qty</th>
+
+                <th>Unit</th>
+
+                <th>Rate</th>
+
+                <th>Discount</th>
+
+                <th>VAT %</th>
+
+                <th>Amount</th>
+
+                <th>Action</th>
+
+              </tr>
+
+            </thead>
+
+
+            <tbody>
+
+              ${quotationRows.map(function (r, i) {
+
+                const qty =
+                  Number(r.qty) || 0;
+
+                const rate =
+                  Number(r.rate) || 0;
+
+                const dis =
+                  Number(r.discount) || 0;
+
+                const vat =
+                  Number(r.vat) || 0;
+
+                const gross =
+                  qty * rate;
+
+                const taxable =
+                  Math.max(
+                    0,
+                    gross - dis
+                  );
+
+                const vatAmount =
+                  taxable * vat / 100;
+
+                const amount =
+                  taxable + vatAmount;
+
+
+                return `
+
+                <tr>
+
+                  <td class="q-sn">
+                    ${i + 1}
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="text"
+                      value="${qEsc(r.item)}"
+                      placeholder="Item"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'item',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="text"
+                      value="${qEsc(r.brand)}"
+                      placeholder="Brand"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'brand',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value="${r.qty || 0}"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'qty',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="text"
+                      value="${qEsc(
+                        r.unit || "pcs"
+                      )}"
+                      placeholder="Unit"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'unit',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value="${r.rate || 0}"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'rate',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value="${r.discount || 0}"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'discount',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td>
+
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="any"
+                      value="${r.vat ?? 13}"
+                      oninput="
+                        updateQuotationRow(
+                          ${i},
+                          'vat',
+                          this.value
+                        )
+                      "
+                    >
+
+                  </td>
+
+
+                  <td class="q-amount">
+
+                    ${money(amount)}
+
+                  </td>
+
+
+                  <td>
+
+                    <button
+                      class="btn mini danger"
+                      onclick="
+                        deleteQuotationNewRow(${i})
+                      ">
+                      Delete
+                    </button>
+
+                  </td>
+
+                </tr>
+
+                `;
+
+              }).join("")}
+
+            </tbody>
+
+
+            <tfoot>
+
+              <tr>
+
+                <td colspan="6"></td>
+
+                <td>
+                  ${money(totals.discount)}
+                </td>
+
+                <td>
+                  ${money(totals.vat)}
+                </td>
+
+                <td>
+                  <b>
+                    ${money(totals.grandTotal)}
+                  </b>
+                </td>
+
+                <td></td>
+
+              </tr>
+
+            </tfoot>
+
+          </table>
+
+        </div>
+
+
+        <!-- TOTALS -->
+
+        <div class="quotation-total-box">
+
+          <div>
+            <span>Subtotal</span>
+            <b>${money(totals.subtotal)}</b>
+          </div>
+
+          <div>
+            <span>Discount</span>
+            <b>${money(totals.discount)}</b>
+          </div>
+
+          <div>
+            <span>VAT</span>
+            <b>${money(totals.vat)}</b>
+          </div>
+
+          <div class="quotation-grand-total">
+            <span>Grand Total</span>
+            <b>${money(totals.grandTotal)}</b>
+          </div>
+
+        </div>
+
+
+      </div>
+
+
+      <!-- SAVED QUOTATIONS -->
+
+      <div class="panel">
+
+        <h3>Saved Quotations</h3>
+
+        <div class="tablewrap">
+
+          <table>
+
+            <thead>
+
+              <tr>
+
+                <th>Quotation No.</th>
+                <th>Date</th>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Total</th>
+                <th>Action</th>
+
+              </tr>
+
+            </thead>
+
+            <tbody>
+
+              ${(data.quotations || [])
+                .slice()
+                .reverse()
+                .map(function (r) {
+
+                  return `
+
+                  <tr>
+
+                    <td>
+                      ${qEsc(r.quoteNo)}
+                    </td>
+
+                    <td>
+                      ${qEsc(r.date)}
+                    </td>
+
+                    <td>
+                      ${qEsc(r.customer)}
+                    </td>
+
+                    <td>
+                      ${qEsc(r.address)}
+                    </td>
+
+                    <td>
+                      ${money(r.grandTotal)}
+                    </td>
+
+                    <td>
+
+                      <button
+                        class="btn mini"
+                        onclick="
+                          editQuotationNew(
+                            ${r.id}
+                          )
+                        ">
+                        Edit
+                      </button>
+
+                      <button
+                        class="btn mini"
+                        onclick="
+                          printQuotationSavedNew(
+                            ${r.id}
+                          )
+                        ">
+                        Print
+                      </button>
+
+                      <button
+                        class="btn mini danger"
+                        onclick="
+                          deleteQuotationNew(
+                            ${r.id}
+                          )
+                        ">
+                        Delete
+                      </button>
+
+                    </td>
+
+                  </tr>
+
+                  `;
+
+                }).join("") ||
+                `
+                <tr>
+                  <td colspan="6">
+                    No quotations saved.
+                  </td>
+                </tr>
+                `}
+
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </div>
+
+    `;
+
+  }
+
+
+  /* ---------- RENDER QUOTATION ---------- */
+
+  function renderQuotationNew(record) {
+
+    const c =
+      document.getElementById("content");
+
+    if (!c) return;
+
+    document.getElementById("title").textContent =
+      "Quotation";
+
+    c.innerHTML =
+      quotationPageNew(record);
+
+  }
+
+
+  /* ---------- SAVE ---------- */
+
+  window.saveQuotationNew = function () {
+
+    const quoteNo =
+      document.getElementById("qnew_no")?.value ||
+      quotationNextNo();
+
+    const date =
+      document.getElementById("qnew_date")?.value ||
+      today();
+
+    const customer =
+      document.getElementById("qnew_name")?.value ||
+      "";
+
+    const address =
+      document.getElementById("qnew_address")?.value ||
+      "";
+
+
+    const totals =
+      calculateQuotationNew();
+
+
+    const quotation = {
+
+      id: Date.now(),
+
+      quoteNo: quoteNo,
+
+      date: date,
+
+      customer: customer,
+
+      address: address,
+
+      items: quotationRows.map(function (r) {
+
+        return {
+
+          item: r.item || "",
+
+          brand: r.brand || "",
+
+          qty: Number(r.qty) || 0,
+
+          unit: r.unit || "",
+
+          rate: Number(r.rate) || 0,
+
+          discount:
+            Number(r.discount) || 0,
+
+          vat:
+            Number(r.vat) || 0
+
+        };
+
+      }),
+
+      subtotal:
+        totals.subtotal,
+
+      discount:
+        totals.discount,
+
+      vat:
+        totals.vat,
+
+      grandTotal:
+        totals.grandTotal
+
+    };
+
+
+    data.quotations =
+      data.quotations || [];
+
+
+    const existing =
+      data.quotations.findIndex(
+        function (r) {
+          return r.quoteNo === quoteNo;
+        }
+      );
+
+
+    if (existing >= 0) {
+
+      quotation.id =
+        data.quotations[existing].id;
+
+      data.quotations[existing] =
+        quotation;
+
+    } else {
+
+      data.quotations.push(
+        quotation
+      );
+
+    }
+
+
+    save();
+
+
+    alert(
+      "Quotation " +
+      quoteNo +
+      " saved successfully."
+    );
+
+
+    renderQuotationNew();
+
+  };
+
+
+  /* ---------- EDIT ---------- */
+
+  window.editQuotationNew = function (id) {
+
+    const q =
+      (data.quotations || [])
+        .find(function (r) {
+          return r.id === id;
+        });
+
+
+    if (!q) return;
+
+
+    quotationRows =
+      (q.items || []).map(function (r) {
+
+        return {
+
+          item: r.item || "",
+
+          brand: r.brand || "",
+
+          qty: r.qty || 0,
+
+          unit: r.unit || "pcs",
+
+          rate: r.rate || 0,
+
+          discount:
+            r.discount || 0,
+
+          vat:
+            r.vat ?? 13
+
+        };
+
+      });
+
+
+    if (!quotationRows.length) {
+
+      quotationRows = [
+
+        {
+          item: "",
+          brand: "",
+          qty: 1,
+          unit: "pcs",
+          rate: 0,
+          discount: 0,
+          vat: 13
+        }
+
+      ];
+
+    }
+
+
+    renderQuotationNew(q);
+
+
+    setTimeout(function () {
+
+      const no =
+        document.getElementById("qnew_no");
+
+      const date =
+        document.getElementById("qnew_date");
+
+      const name =
+        document.getElementById("qnew_name");
+
+      const address =
+        document.getElementById("qnew_address");
+
+
+      if (no)
+        no.value = q.quoteNo || "";
+
+      if (date)
+        date.value = q.date || today();
+
+      if (name)
+        name.value =
+          q.customer || "";
+
+      if (address)
+        address.value =
+          q.address || "";
+
+    }, 20);
+
+  };
+
+
+  /* ---------- DELETE ---------- */
+
+  window.deleteQuotationNew = function (id) {
+
+    if (
+      !confirm(
+        "Delete this quotation?"
+      )
+    ) return;
+
+
+    data.quotations =
+      (data.quotations || [])
+        .filter(function (r) {
+          return r.id !== id;
+        });
+
+
+    save();
+
+    renderQuotationNew();
+
+  };
+
+
+  /* ---------- BUILD PRINT HTML ---------- */
+
+  function quotationPrintHTML(q) {
+
+    const settings =
+      data.settings || {};
+
+    const company =
+      settings.companyName ||
+      "EKIMA ENTERPRISES";
+
+
+    const address =
+      settings.address || "";
+
+
+    const items =
+      q.items || [];
+
+
+    let subtotal = 0;
+    let discount = 0;
+    let vatTotal = 0;
+
+
+    const rows =
+      items.map(function (r, i) {
+
+        const qty =
+          Number(r.qty) || 0;
+
+        const rate =
+          Number(r.rate) || 0;
+
+        const dis =
+          Number(r.discount) || 0;
+
+        const vat =
+          Number(r.vat) || 0;
+
+
+        const gross =
+          qty * rate;
+
+        const taxable =
+          Math.max(
+            0,
+            gross - dis
+          );
+
+        const vatAmount =
+          taxable * vat / 100;
+
+        const amount =
+          taxable + vatAmount;
+
+
+        subtotal += gross;
+
+        discount += dis;
+
+        vatTotal += vatAmount;
+
+
+        return `
+
+        <tr>
+
+          <td>${i + 1}</td>
+
+          <td>${qEsc(r.item)}</td>
+
+          <td>${qEsc(r.brand)}</td>
+
+          <td>${qEsc(qty)}</td>
+
+          <td>${qEsc(r.unit)}</td>
+
+          <td>${money(rate)}</td>
+
+          <td>${money(dis)}</td>
+
+          <td>${qEsc(vat)}%</td>
+
+          <td>${money(amount)}</td>
+
+        </tr>
+
+        `;
+
+      }).join("");
+
+
+    const grand =
+      subtotal -
+      discount +
+      vatTotal;
+
+
+    return `
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="UTF-8">
+
+<title>
+Quotation ${qEsc(q.quoteNo)}
+</title>
+
+
+<style>
+
+body {
+
+  font-family: Arial, sans-serif;
+
+  margin: 35px;
+
+  color: #172033;
+
+}
+
+
+.header {
+
+  border-bottom: 2px solid #222;
+
+  padding-bottom: 12px;
+
+  margin-bottom: 20px;
+
+}
+
+
+.company {
+
+  font-size: 22px;
+
+  font-weight: bold;
+
+}
+
+
+.title {
+
+  font-size: 20px;
+
+  font-weight: bold;
+
+  margin-top: 12px;
+
+}
+
+
+.info {
+
+  margin-top: 15px;
+
+  line-height: 1.7;
+
+}
+
+
+table {
+
+  width: 100%;
+
+  border-collapse: collapse;
+
+  margin-top: 20px;
+
+}
+
+
+th, td {
+
+  border: 1px solid #444;
+
+  padding: 8px;
+
+  font-size: 12px;
+
+}
+
+
+th {
+
+  background: #eee;
+
+}
+
+
+.total {
+
+  width: 300px;
+
+  margin-left: auto;
+
+  margin-top: 20px;
+
+}
+
+
+.total div {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  padding: 7px;
+
+  border-bottom: 1px solid #ddd;
+
+}
+
+
+.grand {
+
+  font-size: 16px;
+
+  font-weight: bold;
+
+  border-top: 2px solid #222;
+
+}
+
+
+.sign {
+
+  display: flex;
+
+  justify-content: space-between;
+
+  margin-top: 100px;
+
+}
+
+
+.sign div {
+
+  width: 180px;
+
+  text-align: center;
+
+  border-top: 1px solid #222;
+
+  padding-top: 8px;
+
+}
+
+
+</style>
+
+</head>
+
+
+<body>
+
+
+<div class="header">
+
+  <div class="company">
+    ${qEsc(company)}
+  </div>
+
+  <div>
+    ${qEsc(address)}
+  </div>
+
+  <div class="title">
+    QUOTATION
+  </div>
+
+</div>
+
+
+<div class="info">
+
+  <b>Quotation No.:</b>
+  ${qEsc(q.quoteNo)}
+
+  &nbsp;&nbsp;&nbsp;
+
+  <b>Date:</b>
+  ${qEsc(q.date)}
+
+  <br>
+
+  <b>Name:</b>
+  ${qEsc(q.customer)}
+
+  <br>
+
+  <b>Address:</b>
+  ${qEsc(q.address)}
+
+</div>
+
+
+<table>
+
+<thead>
+
+<tr>
+
+<th>S.N.</th>
+
+<th>Item</th>
+
+<th>Brand</th>
+
+<th>Qty</th>
+
+<th>Unit</th>
+
+<th>Rate</th>
+
+<th>Discount</th>
+
+<th>VAT %</th>
+
+<th>Amount</th>
+
+</tr>
+
+</thead>
+
+
+<tbody>
+
+${rows}
+
+</tbody>
+
+</table>
+
+
+<div class="total">
+
+  <div>
+
+    <span>Subtotal</span>
+
+    <b>${money(subtotal)}</b>
+
+  </div>
+
+
+  <div>
+
+    <span>Discount</span>
+
+    <b>${money(discount)}</b>
+
+  </div>
+
+
+  <div>
+
+    <span>VAT</span>
+
+    <b>${money(vatTotal)}</b>
+
+  </div>
+
+
+  <div class="grand">
+
+    <span>Grand Total</span>
+
+    <b>${money(grand)}</b>
+
+  </div>
+
+</div>
+
+
+<div class="sign">
+
+  <div>
+    Prepared By
+  </div>
+
+  <div>
+    Customer
+  </div>
+
+</div>
+
+
+</body>
+
+</html>
+
+`;
+
+  }
+
+
+  /* ---------- GET CURRENT QUOTATION ---------- */
+
+  function getCurrentQuotation() {
+
+    const quoteNo =
+      document.getElementById(
+        "qnew_no"
+      )?.value;
+
+
+    const date =
+      document.getElementById(
+        "qnew_date"
+      )?.value;
+
+
+    const customer =
+      document.getElementById(
+        "qnew_name"
+      )?.value;
+
+
+    const address =
+      document.getElementById(
+        "qnew_address"
+      )?.value;
+
+
+    const totals =
+      calculateQuotationNew();
+
+
+    return {
+
+      quoteNo:
+        quoteNo || quotationNextNo(),
+
+      date:
+        date || today(),
+
+      customer:
+        customer || "",
+
+      address:
+        address || "",
+
+      items:
+        quotationRows,
+
+      subtotal:
+        totals.subtotal,
+
+      discount:
+        totals.discount,
+
+      vat:
+        totals.vat,
+
+      grandTotal:
+        totals.grandTotal
+
+    };
+
+  }
+
+
+  /* ---------- PRINT ---------- */
+
+  window.printQuotationNew = function () {
+
+    const q =
+      getCurrentQuotation();
+
+
+    const w =
+      window.open(
+        "",
+        "_blank"
+      );
+
+
+    if (!w) {
+
+      alert(
+        "Please allow pop-ups to print."
+      );
+
+      return;
+
+    }
+
+
+    w.document.write(
+      quotationPrintHTML(q)
+    );
+
+    w.document.close();
+
+    w.focus();
+
+    setTimeout(
+      function () {
+        w.print();
+      },
+      300
+    );
+
+  };
+
+
+  /* ---------- PRINT SAVED ---------- */
+
+  window.printQuotationSavedNew =
+    function (id) {
+
+      const q =
+        (data.quotations || [])
+          .find(function (r) {
+            return r.id === id;
+          });
+
+
+      if (!q) return;
+
+
+      const w =
+        window.open(
+          "",
+          "_blank"
+        );
+
+
+      if (!w) {
+
+        alert(
+          "Please allow pop-ups to print."
+        );
+
+        return;
+
+      }
+
+
+      w.document.write(
+        quotationPrintHTML(q)
+      );
+
+      w.document.close();
+
+      w.focus();
+
+      setTimeout(
+        function () {
+          w.print();
+        },
+        300
+      );
+
+    };
+
+
+  /* ---------- PDF ---------- */
+
+  window.exportQuotationPDFNew =
+    function () {
+
+      const q =
+        getCurrentQuotation();
+
+
+      if (!window.jspdf) {
+
+        alert(
+          "PDF library is not loaded."
+        );
+
+        return;
+
+      }
+
+
+      const jsPDF =
+        window.jspdf.jsPDF;
+
+
+      const doc =
+        new jsPDF(
+          "p",
+          "mm",
+          "a4"
+        );
+
+
+      const settings =
+        data.settings || {};
+
+
+      doc.setFontSize(18);
+
+      doc.text(
+        String(
+          settings.companyName ||
+          "EKIMA ENTERPRISES"
+        ),
+        15,
+        18
+      );
+
+
+      doc.setFontSize(14);
+
+      doc.text(
+        "QUOTATION",
+        15,
+        28
+      );
+
+
+      doc.setFontSize(10);
+
+      doc.text(
+        "Quotation No.: " +
+        q.quoteNo,
+        15,
+        38
+      );
+
+
+      doc.text(
+        "Date: " +
+        q.date,
+        15,
+        44
+      );
+
+
+      doc.text(
+        "Name: " +
+        q.customer,
+        15,
+        50
+      );
+
+
+      doc.text(
+        "Address: " +
+        q.address,
+        15,
+        56
+      );
+
+
+      let y = 66;
+
+
+      doc.setFontSize(9);
+
+
+      doc.text(
+        "S.N.",
+        15,
+        y
+      );
+
+      doc.text(
+        "Item",
+        25,
+        y
+      );
+
+      doc.text(
+        "Brand",
+        75,
+        y
+      );
+
+      doc.text(
+        "Qty",
+        110,
+        y
+      );
+
+      doc.text(
+        "Unit",
+        125,
+        y
+      );
+
+      doc.text(
+        "Rate",
+        140,
+        y
+      );
+
+      doc.text(
+        "Disc.",
+        160,
+        y
+      );
+
+      doc.text(
+        "VAT",
+        178,
+        y
+      );
+
+      doc.text(
+        "Amount",
+        190,
+        y
+      );
+
+
+      y += 6;
+
+
+      q.items.forEach(
+        function (r, i) {
+
+          const qty =
+            Number(r.qty) || 0;
+
+          const rate =
+            Number(r.rate) || 0;
+
+          const dis =
+            Number(r.discount) || 0;
+
+          const vat =
+            Number(r.vat) || 0;
+
+
+          const gross =
+            qty * rate;
+
+          const taxable =
+            Math.max(
+              0,
+              gross - dis
+            );
+
+          const vatAmount =
+            taxable * vat / 100;
+
+          const amount =
+            taxable + vatAmount;
+
+
+          doc.text(
+            String(i + 1),
+            15,
+            y
+          );
+
+          doc.text(
+            String(r.item || "")
+              .slice(0, 30),
+            25,
+            y
+          );
+
+          doc.text(
+            String(r.brand || "")
+              .slice(0, 20),
+            75,
+            y
+          );
+
+          doc.text(
+            String(qty),
+            110,
+            y
+          );
+
+          doc.text(
+            String(r.unit || ""),
+            125,
+            y
+          );
+
+          doc.text(
+            String(rate),
+            140,
+            y
+          );
+
+          doc.text(
+            String(dis),
+            160,
+            y
+          );
+
+          doc.text(
+            String(vat) + "%",
+            178,
+            y
+          );
+
+          doc.text(
+            String(amount.toFixed(2)),
+            190,
+            y
+          );
+
+
+          y += 6;
+
+
+          if (y > 275) {
+
+            doc.addPage();
+
+            y = 20;
+
+          }
+
+        }
+      );
+
+
+      y += 5;
+
+
+      doc.text(
+        "Subtotal: " +
+        q.subtotal.toFixed(2),
+        145,
+        y
+      );
+
+
+      y += 6;
+
+
+      doc.text(
+        "Discount: " +
+        q.discount.toFixed(2),
+        145,
+        y
+      );
+
+
+      y += 6;
+
+
+      doc.text(
+        "VAT: " +
+        q.vat.toFixed(2),
+        145,
+        y
+      );
+
+
+      y += 7;
+
+
+      doc.setFontSize(12);
+
+      doc.text(
+        "Grand Total: " +
+        q.grandTotal.toFixed(2),
+        145,
+        y
+      );
+
+
+      doc.save(
+        "Quotation-" +
+        q.quoteNo +
+        ".pdf"
+      );
+
+    };
+
+
+  /* ---------- WORD ---------- */
+
+  window.exportQuotationWordNew =
+    function () {
+
+      const q =
+        getCurrentQuotation();
+
+
+      const html =
+        quotationPrintHTML(q);
+
+
+      const blob =
+        new Blob(
+          [html],
+          {
+            type:
+              "application/msword"
+          }
+        );
+
+
+      const url =
+        URL.createObjectURL(blob);
+
+
+      const a =
+        document.createElement("a");
+
+
+      a.href = url;
+
+      a.download =
+        "Quotation-" +
+        q.quoteNo +
+        ".doc";
+
+
+      document.body.appendChild(a);
+
+      a.click();
+
+      a.remove();
+
+      URL.revokeObjectURL(url);
+
+    };
+
+
+  /* ---------- EXCEL ---------- */
+
+  window.exportQuotationExcelNew =
+    function () {
+
+      const q =
+        getCurrentQuotation();
+
+
+      if (!window.XLSX) {
+
+        alert(
+          "Excel library is not loaded."
+        );
+
+        return;
+
+      }
+
+
+      const rows = [];
+
+
+      rows.push([
+        "Quotation"
+      ]);
+
+
+      rows.push([
+        "Quotation No.",
+        q.quoteNo
+      ]);
+
+
+      rows.push([
+        "Date",
+        q.date
+      ]);
+
+
+      rows.push([
+        "Name",
+        q.customer
+      ]);
+
+
+      rows.push([
+        "Address",
+        q.address
+      ]);
+
+
+      rows.push([]);
+
+
+      rows.push([
+
+        "S.N.",
+
+        "Item",
+
+        "Brand",
+
+        "Qty",
+
+        "Unit",
+
+        "Rate",
+
+        "Discount",
+
+        "VAT %",
+
+        "Amount"
+
+      ]);
+
+
+      q.items.forEach(
+        function (r, i) {
+
+          const qty =
+            Number(r.qty) || 0;
+
+          const rate =
+            Number(r.rate) || 0;
+
+          const dis =
+            Number(r.discount) || 0;
+
+          const vat =
+            Number(r.vat) || 0;
+
+
+          const gross =
+            qty * rate;
+
+          const taxable =
+            Math.max(
+              0,
+              gross - dis
+            );
+
+          const vatAmount =
+            taxable * vat / 100;
+
+          const amount =
+            taxable + vatAmount;
+
+
+          rows.push([
+
+            i + 1,
+
+            r.item || "",
+
+            r.brand || "",
+
+            qty,
+
+            r.unit || "",
+
+            rate,
+
+            dis,
+
+            vat,
+
+            amount
+
+          ]);
+
+        }
+      );
+
+
+      rows.push([]);
+
+
+      rows.push([
+        "Subtotal",
+        q.subtotal
+      ]);
+
+
+      rows.push([
+        "Discount",
+        q.discount
+      ]);
+
+
+      rows.push([
+        "VAT",
+        q.vat
+      ]);
+
+
+      rows.push([
+        "Grand Total",
+        q.grandTotal
+      ]);
+
+
+      const ws =
+        XLSX.utils.aoa_to_sheet(
+          rows
+        );
+
+
+      const wb =
+        XLSX.utils.book_new();
+
+
+      XLSX.utils.book_append_sheet(
+        wb,
+        ws,
+        "Quotation"
+      );
+
+
+      XLSX.writeFile(
+        wb,
+        "Quotation-" +
+        q.quoteNo +
+        ".xlsx"
+      );
+
+    };
+
+
+  /* ============================================================
+     OVERRIDE RENDER ONLY FOR QUOTATION
+     Other ERP modules continue using existing render.
+     ============================================================ */
+
+  const oldRenderQuotation =
+    window.render;
+
+
+  window.render = function () {
+
+    if (page === "quotation") {
+
+      renderQuotationNew();
+
+      return;
+
+    }
+
+
+    return oldRenderQuotation.apply(
+      this,
+      arguments
+    );
+
+  };
+
+
+  /* ---------- OPEN QUOTATION ---------- */
+
+  const oldGoQuotation =
+    window.go;
+
+
+  window.go = function (p) {
+
+    if (p === "quotation") {
+
+      page = "quotation";
+
+      document
+        .querySelector(".sidebar")
+        ?.classList.remove("open");
+
+      buildNav();
+
+      renderQuotationNew();
+
+      return;
+
+    }
+
+
+    return oldGoQuotation.apply(
+      this,
+      arguments
+    );
+
+  };
+
+
+  /* ---------- CSS ---------- */
+
+  const quotationStyle =
+    document.createElement("style");
+
+
+  quotationStyle.innerHTML = `
+
+  .quotation-basic-grid {
+
+    display: grid;
+
+    grid-template-columns:
+      repeat(2, minmax(220px, 1fr));
+
+    gap: 15px;
+
+  }
+
+
+  .quotation-basic-grid label {
+
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 6px;
+
+    font-weight: 600;
+
+  }
+
+
+  .quotation-basic-grid input {
+
+    padding: 10px;
+
+    border:
+      1px solid #ccc;
+
+    border-radius: 5px;
+
+    width: 100%;
+
+    box-sizing: border-box;
+
+  }
+
+
+  .quotation-sheet-title {
+
+    display: flex;
+
+    justify-content:
+      space-between;
+
+    align-items: center;
+
+    margin-bottom: 12px;
+
+  }
+
+
+  .quotation-spreadsheet {
+
+    width: 100%;
+
+    min-width: 1050px;
+
+    border-collapse:
+      collapse;
+
+  }
+
+
+  .quotation-spreadsheet th,
+  .quotation-spreadsheet td {
+
+    border:
+      1px solid #d5d5d5;
+
+    padding: 5px;
+
+  }
+
+
+  .quotation-spreadsheet th {
+
+    background: #f1f3f5;
+
+    font-weight: 700;
+
+    white-space: nowrap;
+
+  }
+
+
+  .quotation-spreadsheet input {
+
+    width: 100%;
+
+    min-width: 70px;
+
+    padding: 7px;
+
+    border:
+      1px solid #ccc;
+
+    box-sizing: border-box;
+
+  }
+
+
+  .quotation-spreadsheet td:nth-child(2)
+  input {
+
+    min-width: 190px;
+
+  }
+
+
+  .quotation-spreadsheet td:nth-child(3)
+  input {
+
+    min-width: 110px;
+
+  }
+
+
+  .quotation-spreadsheet .q-sn {
+
+    text-align: center;
+
+    font-weight: bold;
+
+  }
+
+
+  .quotation-spreadsheet .q-amount {
+
+    text-align: right;
+
+    white-space: nowrap;
+
+    font-weight: bold;
+
+  }
+
+
+  .quotation-total-box {
+
+    width: 350px;
+
+    margin-left: auto;
+
+    margin-top: 20px;
+
+  }
+
+
+  .quotation-total-box > div {
+
+    display: flex;
+
+    justify-content:
+      space-between;
+
+    padding: 8px;
+
+    border-bottom:
+      1px solid #ddd;
+
+  }
+
+
+  .quotation-grand-total {
+
+    font-size: 18px;
+
+    font-weight: bold;
+
+    border-top:
+      2px solid #222;
+
+  }
+
+
+  .quotation-new-actions {
+
+    display: flex;
+
+    flex-wrap: wrap;
+
+    gap: 5px;
+
+  }
+
+
+  @media(max-width:800px) {
+
+    .quotation-basic-grid {
+
+      grid-template-columns: 1fr;
+
+    }
+
+
+    .quotation-total-box {
+
+      width: 100%;
+
+    }
+
+  }
+
+
+  @media print {
+
+    .quotation-new-actions,
+    .quotation-sheet-title button {
+
+      display: none !important;
+
+    }
+
+  }
+
+  `;
+
+
+  document.head.appendChild(
+    quotationStyle
+  );
+
+
+})();
