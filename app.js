@@ -3060,9 +3060,9 @@ setInterval(
       }
     }
   };
-})();
 /* ============================================================
    EKIMA ERP - NEW SPREADSHEET QUOTATION
+   DISCOUNT & VAT REMOVED
    Paste this code at the VERY END of app.js
    Existing modules remain unchanged.
    ============================================================ */
@@ -3074,6 +3074,7 @@ setInterval(
   data.quotations = data.quotations || [];
 
   modules.quotation = ["🧾", "Quotation"];
+
 
   /* ---------- AUTO QUOTATION NUMBER ---------- */
 
@@ -3117,15 +3118,15 @@ setInterval(
 
   window.quotationRows =
     window.quotationRows || [
+
       {
         item: "",
         brand: "",
         qty: 1,
         unit: "pcs",
-        rate: 0,
-        discount: 0,
-        vat: 13
+        rate: 0
       }
+
     ];
 
 
@@ -3134,38 +3135,25 @@ setInterval(
   window.calculateQuotationNew = function () {
 
     let subtotal = 0;
-    let discount = 0;
-    let vatTotal = 0;
 
     quotationRows.forEach(function (r) {
 
-      const qty = Number(r.qty) || 0;
-      const rate = Number(r.rate) || 0;
-      const dis = Number(r.discount) || 0;
-      const vat = Number(r.vat) || 0;
+      const qty =
+        Number(r.qty) || 0;
 
-      const gross = qty * rate;
+      const rate =
+        Number(r.rate) || 0;
 
-      const taxable =
-        Math.max(0, gross - dis);
-
-      const vatAmount =
-        taxable * vat / 100;
-
-      subtotal += gross;
-      discount += dis;
-      vatTotal += vatAmount;
+      subtotal += qty * rate;
 
     });
 
-    const grandTotal =
-      subtotal - discount + vatTotal;
-
     return {
-      subtotal,
-      discount,
-      vat: vatTotal,
-      grandTotal
+
+      subtotal: subtotal,
+
+      grandTotal: subtotal
+
     };
 
   };
@@ -3198,9 +3186,7 @@ setInterval(
       brand: "",
       qty: 1,
       unit: "pcs",
-      rate: 0,
-      discount: 0,
-      vat: 13
+      rate: 0
 
     });
 
@@ -3215,7 +3201,9 @@ setInterval(
 
     if (quotationRows.length <= 1) {
 
-      alert("At least one item row is required.");
+      alert(
+        "At least one item row is required."
+      );
 
       return;
 
@@ -3239,9 +3227,7 @@ setInterval(
         brand: "",
         qty: 1,
         unit: "pcs",
-        rate: 0,
-        discount: 0,
-        vat: 13
+        rate: 0
       }
 
     ];
@@ -3267,6 +3253,7 @@ setInterval(
     const totals =
       calculateQuotationNew();
 
+
     return `
 
     <div class="wrap">
@@ -3283,34 +3270,46 @@ setInterval(
 
         </div>
 
+
         <div class="quotation-new-actions">
 
-          <button class="btn"
+          <button
+            class="btn"
             onclick="newQuotationNew()">
             + New
           </button>
 
-          <button class="btn"
+
+          <button
+            class="btn"
             onclick="saveQuotationNew()">
             Save
           </button>
 
-          <button class="btn"
+
+          <button
+            class="btn"
             onclick="printQuotationNew()">
             Print
           </button>
 
-          <button class="btn"
+
+          <button
+            class="btn"
             onclick="exportQuotationPDFNew()">
             PDF
           </button>
 
-          <button class="btn"
+
+          <button
+            class="btn"
             onclick="exportQuotationWordNew()">
             Word
           </button>
 
-          <button class="btn"
+
+          <button
+            class="btn"
             onclick="exportQuotationExcelNew()">
             Excel
           </button>
@@ -3327,7 +3326,9 @@ setInterval(
         <div class="quotation-basic-grid">
 
           <label>
+
             Quotation No.
+
             <input
               id="qnew_no"
               type="text"
@@ -3335,24 +3336,32 @@ setInterval(
               value="${qEsc(
                 q.quoteNo ||
                 quotationNextNo()
-              )}">
+              )}"
+            >
+
           </label>
 
 
           <label>
+
             Date
+
             <input
               id="qnew_date"
               type="date"
               value="${qEsc(
                 q.date ||
                 today()
-              )}">
+              )}"
+            >
+
           </label>
 
 
           <label>
+
             Name
+
             <input
               id="qnew_name"
               type="text"
@@ -3361,12 +3370,16 @@ setInterval(
                 q.customer ||
                 q.name ||
                 ""
-              )}">
+              )}"
+            >
+
           </label>
 
 
           <label>
+
             Address
+
             <input
               id="qnew_address"
               type="text"
@@ -3374,7 +3387,9 @@ setInterval(
               value="${qEsc(
                 q.address ||
                 ""
-              )}">
+              )}"
+            >
+
           </label>
 
         </div>
@@ -3389,6 +3404,7 @@ setInterval(
         <div class="quotation-sheet-title">
 
           <h3>Quotation Items</h3>
+
 
           <button
             class="btn"
@@ -3419,10 +3435,6 @@ setInterval(
 
                 <th>Rate</th>
 
-                <th>Discount</th>
-
-                <th>VAT %</th>
-
                 <th>Amount</th>
 
                 <th>Action</th>
@@ -3442,26 +3454,8 @@ setInterval(
                 const rate =
                   Number(r.rate) || 0;
 
-                const dis =
-                  Number(r.discount) || 0;
-
-                const vat =
-                  Number(r.vat) || 0;
-
-                const gross =
-                  qty * rate;
-
-                const taxable =
-                  Math.max(
-                    0,
-                    gross - dis
-                  );
-
-                const vatAmount =
-                  taxable * vat / 100;
-
                 const amount =
-                  taxable + vatAmount;
+                  qty * rate;
 
 
                 return `
@@ -3567,45 +3561,6 @@ setInterval(
                   </td>
 
 
-                  <td>
-
-                    <input
-                      type="number"
-                      min="0"
-                      step="any"
-                      value="${r.discount || 0}"
-                      oninput="
-                        updateQuotationRow(
-                          ${i},
-                          'discount',
-                          this.value
-                        )
-                      "
-                    >
-
-                  </td>
-
-
-                  <td>
-
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="any"
-                      value="${r.vat ?? 13}"
-                      oninput="
-                        updateQuotationRow(
-                          ${i},
-                          'vat',
-                          this.value
-                        )
-                      "
-                    >
-
-                  </td>
-
-
                   <td class="q-amount">
 
                     ${money(amount)}
@@ -3641,17 +3596,11 @@ setInterval(
                 <td colspan="6"></td>
 
                 <td>
-                  ${money(totals.discount)}
-                </td>
 
-                <td>
-                  ${money(totals.vat)}
-                </td>
-
-                <td>
                   <b>
                     ${money(totals.grandTotal)}
                   </b>
+
                 </td>
 
                 <td></td>
@@ -3669,28 +3618,19 @@ setInterval(
 
         <div class="quotation-total-box">
 
-          <div>
-            <span>Subtotal</span>
-            <b>${money(totals.subtotal)}</b>
-          </div>
-
-          <div>
-            <span>Discount</span>
-            <b>${money(totals.discount)}</b>
-          </div>
-
-          <div>
-            <span>VAT</span>
-            <b>${money(totals.vat)}</b>
-          </div>
-
           <div class="quotation-grand-total">
-            <span>Grand Total</span>
-            <b>${money(totals.grandTotal)}</b>
+
+            <span>
+              Grand Total
+            </span>
+
+            <b>
+              ${money(totals.grandTotal)}
+            </b>
+
           </div>
 
         </div>
-
 
       </div>
 
@@ -3701,6 +3641,7 @@ setInterval(
 
         <h3>Saved Quotations</h3>
 
+
         <div class="tablewrap">
 
           <table>
@@ -3710,15 +3651,21 @@ setInterval(
               <tr>
 
                 <th>Quotation No.</th>
+
                 <th>Date</th>
+
                 <th>Name</th>
+
                 <th>Address</th>
+
                 <th>Total</th>
+
                 <th>Action</th>
 
               </tr>
 
             </thead>
+
 
             <tbody>
 
@@ -3735,21 +3682,26 @@ setInterval(
                       ${qEsc(r.quoteNo)}
                     </td>
 
+
                     <td>
                       ${qEsc(r.date)}
                     </td>
+
 
                     <td>
                       ${qEsc(r.customer)}
                     </td>
 
+
                     <td>
                       ${qEsc(r.address)}
                     </td>
 
+
                     <td>
                       ${money(r.grandTotal)}
                     </td>
+
 
                     <td>
 
@@ -3763,6 +3715,7 @@ setInterval(
                         Edit
                       </button>
 
+
                       <button
                         class="btn mini"
                         onclick="
@@ -3772,6 +3725,7 @@ setInterval(
                         ">
                         Print
                       </button>
+
 
                       <button
                         class="btn mini danger"
@@ -3790,12 +3744,17 @@ setInterval(
                   `;
 
                 }).join("") ||
+
                 `
+
                 <tr>
+
                   <td colspan="6">
                     No quotations saved.
                   </td>
+
                 </tr>
+
                 `}
 
             </tbody>
@@ -3813,7 +3772,7 @@ setInterval(
   }
 
 
-  /* ---------- RENDER QUOTATION ---------- */
+  /* ---------- RENDER ---------- */
 
   function renderQuotationNew(record) {
 
@@ -3839,13 +3798,16 @@ setInterval(
       document.getElementById("qnew_no")?.value ||
       quotationNextNo();
 
+
     const date =
       document.getElementById("qnew_date")?.value ||
       today();
 
+
     const customer =
       document.getElementById("qnew_name")?.value ||
       "";
+
 
     const address =
       document.getElementById("qnew_address")?.value ||
@@ -3868,6 +3830,7 @@ setInterval(
 
       address: address,
 
+
       items: quotationRows.map(function (r) {
 
         return {
@@ -3876,30 +3839,23 @@ setInterval(
 
           brand: r.brand || "",
 
-          qty: Number(r.qty) || 0,
+          qty:
+            Number(r.qty) || 0,
 
-          unit: r.unit || "",
+          unit:
+            r.unit || "",
 
-          rate: Number(r.rate) || 0,
-
-          discount:
-            Number(r.discount) || 0,
-
-          vat:
-            Number(r.vat) || 0
+          rate:
+            Number(r.rate) || 0
 
         };
 
       }),
 
+
       subtotal:
         totals.subtotal,
 
-      discount:
-        totals.discount,
-
-      vat:
-        totals.vat,
 
       grandTotal:
         totals.grandTotal
@@ -3914,7 +3870,9 @@ setInterval(
     const existing =
       data.quotations.findIndex(
         function (r) {
+
           return r.quoteNo === quoteNo;
+
         }
       );
 
@@ -3958,7 +3916,9 @@ setInterval(
     const q =
       (data.quotations || [])
         .find(function (r) {
+
           return r.id === id;
+
         });
 
 
@@ -3970,21 +3930,20 @@ setInterval(
 
         return {
 
-          item: r.item || "",
+          item:
+            r.item || "",
 
-          brand: r.brand || "",
+          brand:
+            r.brand || "",
 
-          qty: r.qty || 0,
+          qty:
+            r.qty || 0,
 
-          unit: r.unit || "pcs",
+          unit:
+            r.unit || "pcs",
 
-          rate: r.rate || 0,
-
-          discount:
-            r.discount || 0,
-
-          vat:
-            r.vat ?? 13
+          rate:
+            r.rate || 0
 
         };
 
@@ -4000,9 +3959,7 @@ setInterval(
           brand: "",
           qty: 1,
           unit: "pcs",
-          rate: 0,
-          discount: 0,
-          vat: 13
+          rate: 0
         }
 
       ];
@@ -4029,18 +3986,24 @@ setInterval(
 
 
       if (no)
-        no.value = q.quoteNo || "";
+        no.value =
+          q.quoteNo || "";
+
 
       if (date)
-        date.value = q.date || today();
+        date.value =
+          q.date || today();
+
 
       if (name)
         name.value =
           q.customer || "";
 
+
       if (address)
         address.value =
           q.address || "";
+
 
     }, 20);
 
@@ -4061,7 +4024,9 @@ setInterval(
     data.quotations =
       (data.quotations || [])
         .filter(function (r) {
+
           return r.id !== id;
+
         });
 
 
@@ -4072,12 +4037,13 @@ setInterval(
   };
 
 
-  /* ---------- BUILD PRINT HTML ---------- */
+  /* ---------- PRINT HTML ---------- */
 
   function quotationPrintHTML(q) {
 
     const settings =
       data.settings || {};
+
 
     const company =
       settings.companyName ||
@@ -4093,8 +4059,6 @@ setInterval(
 
 
     let subtotal = 0;
-    let discount = 0;
-    let vatTotal = 0;
 
 
     const rows =
@@ -4103,72 +4067,61 @@ setInterval(
         const qty =
           Number(r.qty) || 0;
 
+
         const rate =
           Number(r.rate) || 0;
 
-        const dis =
-          Number(r.discount) || 0;
-
-        const vat =
-          Number(r.vat) || 0;
-
-
-        const gross =
-          qty * rate;
-
-        const taxable =
-          Math.max(
-            0,
-            gross - dis
-          );
-
-        const vatAmount =
-          taxable * vat / 100;
 
         const amount =
-          taxable + vatAmount;
+          qty * rate;
 
 
-        subtotal += gross;
-
-        discount += dis;
-
-        vatTotal += vatAmount;
+        subtotal += amount;
 
 
         return `
 
         <tr>
 
-          <td>${i + 1}</td>
+          <td>
+            ${i + 1}
+          </td>
 
-          <td>${qEsc(r.item)}</td>
 
-          <td>${qEsc(r.brand)}</td>
+          <td>
+            ${qEsc(r.item)}
+          </td>
 
-          <td>${qEsc(qty)}</td>
 
-          <td>${qEsc(r.unit)}</td>
+          <td>
+            ${qEsc(r.brand)}
+          </td>
 
-          <td>${money(rate)}</td>
 
-          <td>${money(dis)}</td>
+          <td>
+            ${qEsc(qty)}
+          </td>
 
-          <td>${qEsc(vat)}%</td>
 
-          <td>${money(amount)}</td>
+          <td>
+            ${qEsc(r.unit)}
+          </td>
+
+
+          <td>
+            ${money(rate)}
+          </td>
+
+
+          <td>
+            ${money(amount)}
+          </td>
 
         </tr>
 
         `;
 
       }).join("");
-
-
-    const grand =
-      subtotal -
-      discount +
-      vatTotal;
 
 
     return `
@@ -4181,6 +4134,7 @@ setInterval(
 
 <meta charset="UTF-8">
 
+
 <title>
 Quotation ${qEsc(q.quoteNo)}
 </title>
@@ -4190,7 +4144,8 @@ Quotation ${qEsc(q.quoteNo)}
 
 body {
 
-  font-family: Arial, sans-serif;
+  font-family:
+    Arial, sans-serif;
 
   margin: 35px;
 
@@ -4201,7 +4156,8 @@ body {
 
 .header {
 
-  border-bottom: 2px solid #222;
+  border-bottom:
+    2px solid #222;
 
   padding-bottom: 12px;
 
@@ -4243,16 +4199,19 @@ table {
 
   width: 100%;
 
-  border-collapse: collapse;
+  border-collapse:
+    collapse;
 
   margin-top: 20px;
 
 }
 
 
-th, td {
+th,
+td {
 
-  border: 1px solid #444;
+  border:
+    1px solid #444;
 
   padding: 8px;
 
@@ -4283,11 +4242,13 @@ th {
 
   display: flex;
 
-  justify-content: space-between;
+  justify-content:
+    space-between;
 
   padding: 7px;
 
-  border-bottom: 1px solid #ddd;
+  border-bottom:
+    1px solid #ddd;
 
 }
 
@@ -4298,7 +4259,8 @@ th {
 
   font-weight: bold;
 
-  border-top: 2px solid #222;
+  border-top:
+    2px solid #222;
 
 }
 
@@ -4307,7 +4269,8 @@ th {
 
   display: flex;
 
-  justify-content: space-between;
+  justify-content:
+    space-between;
 
   margin-top: 100px;
 
@@ -4320,12 +4283,12 @@ th {
 
   text-align: center;
 
-  border-top: 1px solid #222;
+  border-top:
+    1px solid #222;
 
   padding-top: 8px;
 
 }
-
 
 </style>
 
@@ -4341,9 +4304,11 @@ th {
     ${qEsc(company)}
   </div>
 
+
   <div>
     ${qEsc(address)}
   </div>
+
 
   <div class="title">
     QUOTATION
@@ -4364,10 +4329,12 @@ th {
 
   <br>
 
+
   <b>Name:</b>
   ${qEsc(q.customer)}
 
   <br>
+
 
   <b>Address:</b>
   ${qEsc(q.address)}
@@ -4393,10 +4360,6 @@ th {
 
 <th>Rate</th>
 
-<th>Discount</th>
-
-<th>VAT %</th>
-
 <th>Amount</th>
 
 </tr>
@@ -4415,38 +4378,15 @@ ${rows}
 
 <div class="total">
 
-  <div>
-
-    <span>Subtotal</span>
-
-    <b>${money(subtotal)}</b>
-
-  </div>
-
-
-  <div>
-
-    <span>Discount</span>
-
-    <b>${money(discount)}</b>
-
-  </div>
-
-
-  <div>
-
-    <span>VAT</span>
-
-    <b>${money(vatTotal)}</b>
-
-  </div>
-
-
   <div class="grand">
 
-    <span>Grand Total</span>
+    <span>
+      Grand Total
+    </span>
 
-    <b>${money(grand)}</b>
+    <b>
+      ${money(subtotal)}
+    </b>
 
   </div>
 
@@ -4458,6 +4398,7 @@ ${rows}
   <div>
     Prepared By
   </div>
+
 
   <div>
     Customer
@@ -4475,7 +4416,7 @@ ${rows}
   }
 
 
-  /* ---------- GET CURRENT QUOTATION ---------- */
+  /* ---------- CURRENT QUOTATION ---------- */
 
   function getCurrentQuotation() {
 
@@ -4510,28 +4451,32 @@ ${rows}
     return {
 
       quoteNo:
-        quoteNo || quotationNextNo(),
+        quoteNo ||
+        quotationNextNo(),
+
 
       date:
-        date || today(),
+        date ||
+        today(),
+
 
       customer:
-        customer || "",
+        customer ||
+        "",
+
 
       address:
-        address || "",
+        address ||
+        "",
+
 
       items:
         quotationRows,
 
+
       subtotal:
         totals.subtotal,
 
-      discount:
-        totals.discount,
-
-      vat:
-        totals.vat,
 
       grandTotal:
         totals.grandTotal
@@ -4571,13 +4516,17 @@ ${rows}
       quotationPrintHTML(q)
     );
 
+
     w.document.close();
 
     w.focus();
 
+
     setTimeout(
       function () {
+
         w.print();
+
       },
       300
     );
@@ -4593,7 +4542,9 @@ ${rows}
       const q =
         (data.quotations || [])
           .find(function (r) {
+
             return r.id === id;
+
           });
 
 
@@ -4622,13 +4573,17 @@ ${rows}
         quotationPrintHTML(q)
       );
 
+
       w.document.close();
 
       w.focus();
 
+
       setTimeout(
         function () {
+
           w.print();
+
         },
         300
       );
@@ -4674,6 +4629,7 @@ ${rows}
 
       doc.setFontSize(18);
 
+
       doc.text(
         String(
           settings.companyName ||
@@ -4686,6 +4642,7 @@ ${rows}
 
       doc.setFontSize(14);
 
+
       doc.text(
         "QUOTATION",
         15,
@@ -4694,6 +4651,7 @@ ${rows}
 
 
       doc.setFontSize(10);
+
 
       doc.text(
         "Quotation No.: " +
@@ -4739,11 +4697,13 @@ ${rows}
         y
       );
 
+
       doc.text(
         "Item",
         25,
         y
       );
+
 
       doc.text(
         "Brand",
@@ -4751,11 +4711,13 @@ ${rows}
         y
       );
 
+
       doc.text(
         "Qty",
         110,
         y
       );
+
 
       doc.text(
         "Unit",
@@ -4763,27 +4725,17 @@ ${rows}
         y
       );
 
+
       doc.text(
         "Rate",
-        140,
+        145,
         y
       );
 
-      doc.text(
-        "Disc.",
-        160,
-        y
-      );
-
-      doc.text(
-        "VAT",
-        178,
-        y
-      );
 
       doc.text(
         "Amount",
-        190,
+        175,
         y
       );
 
@@ -4797,30 +4749,13 @@ ${rows}
           const qty =
             Number(r.qty) || 0;
 
+
           const rate =
             Number(r.rate) || 0;
 
-          const dis =
-            Number(r.discount) || 0;
-
-          const vat =
-            Number(r.vat) || 0;
-
-
-          const gross =
-            qty * rate;
-
-          const taxable =
-            Math.max(
-              0,
-              gross - dis
-            );
-
-          const vatAmount =
-            taxable * vat / 100;
 
           const amount =
-            taxable + vatAmount;
+            qty * rate;
 
 
           doc.text(
@@ -4829,12 +4764,14 @@ ${rows}
             y
           );
 
+
           doc.text(
             String(r.item || "")
               .slice(0, 30),
             25,
             y
           );
+
 
           doc.text(
             String(r.brand || "")
@@ -4843,11 +4780,13 @@ ${rows}
             y
           );
 
+
           doc.text(
             String(qty),
             110,
             y
           );
+
 
           doc.text(
             String(r.unit || ""),
@@ -4855,27 +4794,17 @@ ${rows}
             y
           );
 
+
           doc.text(
             String(rate),
-            140,
+            145,
             y
           );
 
-          doc.text(
-            String(dis),
-            160,
-            y
-          );
-
-          doc.text(
-            String(vat) + "%",
-            178,
-            y
-          );
 
           doc.text(
             String(amount.toFixed(2)),
-            190,
+            175,
             y
           );
 
@@ -4895,43 +4824,11 @@ ${rows}
       );
 
 
-      y += 5;
-
-
-      doc.text(
-        "Subtotal: " +
-        q.subtotal.toFixed(2),
-        145,
-        y
-      );
-
-
-      y += 6;
-
-
-      doc.text(
-        "Discount: " +
-        q.discount.toFixed(2),
-        145,
-        y
-      );
-
-
-      y += 6;
-
-
-      doc.text(
-        "VAT: " +
-        q.vat.toFixed(2),
-        145,
-        y
-      );
-
-
-      y += 7;
+      y += 8;
 
 
       doc.setFontSize(12);
+
 
       doc.text(
         "Grand Total: " +
@@ -4982,6 +4879,7 @@ ${rows}
 
 
       a.href = url;
+
 
       a.download =
         "Quotation-" +
@@ -5069,10 +4967,6 @@ ${rows}
 
         "Rate",
 
-        "Discount",
-
-        "VAT %",
-
         "Amount"
 
       ]);
@@ -5084,30 +4978,13 @@ ${rows}
           const qty =
             Number(r.qty) || 0;
 
+
           const rate =
             Number(r.rate) || 0;
 
-          const dis =
-            Number(r.discount) || 0;
-
-          const vat =
-            Number(r.vat) || 0;
-
-
-          const gross =
-            qty * rate;
-
-          const taxable =
-            Math.max(
-              0,
-              gross - dis
-            );
-
-          const vatAmount =
-            taxable * vat / 100;
 
           const amount =
-            taxable + vatAmount;
+            qty * rate;
 
 
           rows.push([
@@ -5124,10 +5001,6 @@ ${rows}
 
             rate,
 
-            dis,
-
-            vat,
-
             amount
 
           ]);
@@ -5137,24 +5010,6 @@ ${rows}
 
 
       rows.push([]);
-
-
-      rows.push([
-        "Subtotal",
-        q.subtotal
-      ]);
-
-
-      rows.push([
-        "Discount",
-        q.discount
-      ]);
-
-
-      rows.push([
-        "VAT",
-        q.vat
-      ]);
 
 
       rows.push([
@@ -5192,7 +5047,6 @@ ${rows}
 
   /* ============================================================
      OVERRIDE RENDER ONLY FOR QUOTATION
-     Other ERP modules continue using existing render.
      ============================================================ */
 
   const oldRenderQuotation =
@@ -5230,13 +5084,17 @@ ${rows}
 
       page = "quotation";
 
+
       document
         .querySelector(".sidebar")
         ?.classList.remove("open");
 
+
       buildNav();
 
+
       renderQuotationNew();
+
 
       return;
 
@@ -5318,7 +5176,7 @@ ${rows}
 
     width: 100%;
 
-    min-width: 1050px;
+    min-width: 850px;
 
     border-collapse:
       collapse;
@@ -5364,7 +5222,8 @@ ${rows}
   }
 
 
-  .quotation-spreadsheet td:nth-child(2)
+  .quotation-spreadsheet
+  td:nth-child(2)
   input {
 
     min-width: 190px;
@@ -5372,7 +5231,8 @@ ${rows}
   }
 
 
-  .quotation-spreadsheet td:nth-child(3)
+  .quotation-spreadsheet
+  td:nth-child(3)
   input {
 
     min-width: 110px;
@@ -5411,22 +5271,14 @@ ${rows}
   }
 
 
-  .quotation-total-box > div {
+  .quotation-grand-total {
 
     display: flex;
 
     justify-content:
       space-between;
 
-    padding: 8px;
-
-    border-bottom:
-      1px solid #ddd;
-
-  }
-
-
-  .quotation-grand-total {
+    padding: 12px;
 
     font-size: 18px;
 
